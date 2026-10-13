@@ -88,8 +88,8 @@ export default async function BetterPage() {
           </p>
           <p>
             The judge model still prefers the prompted models. Their replies are longer and almost always name a detail
-            from the review, and judges tend to reward that. Real owner replies lose to them by the same margin, so the judge
-            is measuring polish, not whether a shop owner would post it.
+            from the review, and judges tend to reward that. It ranks real owner replies low too, so the judge
+            is mostly measuring polish, not whether a shop owner would post it.
           </p>
           <p>
             That question goes to people. On the <Link href="/ab">Blind test</Link> page you see one reply from each 4B model

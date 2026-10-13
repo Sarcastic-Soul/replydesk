@@ -26,7 +26,7 @@ flowchart LR
 |---|---|
 | **Tinker** | LoRA fine-tune of Qwen3.5-4B, and serving the fine-tuned model through Tinker's OpenAI-compatible endpoint. The eval also runs on Tinker. |
 | **Tiger Cloud** | Postgres 18 with `pg_textsearch` (BM25) and `vectorscale` (DiskANN). Holds the shop, reviews, sent replies, 11.5k example replies, eval results and blind-test votes. |
-| **Backboard** | One memory assistant per shop. Shop facts ("open Sundays till 2", "no home pickup") are saved there, and memory search picks the ones that matter for each review. |
+| **Backboard** | One memory assistant per shop. Shop facts ("Free re-check within 7 days") are saved there, and memory search picks the ones that matter for each review. |
 | Groq | Checks each draft for promises the shop facts do not back. |
 | Next.js 16, React 19, Tailwind 4, drizzle-orm, Phosphor icons, bun | The app. |
 
@@ -56,7 +56,7 @@ It took three tries:
 
 | Run | Change | What went wrong |
 |---|---|---|
-| v1 | All clean pairs, 2 epochs | Learned real owners' bad habits too: "you are obviously confused about which shop you visited". |
+| v1 | All clean pairs, 2 epochs | Learned real owners' bad habits too: "Cameron, you are obviously confused. We did not see you in the store." |
 | v2 | Dropped defensive and stock replies | Polite, but bland. Many replies could have gone under any review. |
 | v3 | Kept only replies that are long enough and talk about what the reviewer said | The one the app uses. Test loss 2.125. |
 
@@ -80,7 +80,7 @@ v3 trained on 1.28M tokens for about $0.95. All three runs together came to abou
 What this says, plainly:
 
 - Fine-tuning made the model write like real owners. Length, stock phrases and made-up promises all moved from where the prompted model sits to where real owners sit, and stock phrases dropped below even real owners.
-- The judge does not like that. It prefers the prompted models, whose replies are longer and nearly always repeat a detail back. It ranks real owners' replies just as low as the fine-tuned ones. So the judge rewards polish, and polish is not the same as what an owner would post.
+- The judge does not like that. It prefers the prompted models, whose replies are longer and nearly always repeat a detail back. It ranks real owners' replies near the bottom too (first pick 10.7%). So the judge rewards polish, and polish is not the same as what an owner would post.
 - The fine-tuned model is a bit cheaper per reply because it writes less, and it costs nothing like a closed model.
 
 Whether owners prefer it is a question for owners, so the app has a blind test (`/ab`): two replies to the same review, one from each 4B model, sides shuffled, and you pick the one you would send. Votes go to Tiger and show up on `/better`.
