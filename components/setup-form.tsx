@@ -83,7 +83,7 @@ export function SetupForm({ shop }: { shop: Shop }) {
         )}
         <div className="add-row">
           <label htmlFor="s-fact" className="sr-only">New shop fact</label>
-          <input id="s-fact" className="input" value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Free re-check within 7 days"
+          <input id="s-fact" className="input" value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Open Sundays till 2 pm"
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFact(); } }} />
           <button type="button" className="btn" onClick={addFact}><Plus size={17} />Add</button>
         </div>

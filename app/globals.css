@@ -191,9 +191,10 @@ table.eval { border-collapse: collapse; width: 100%; min-width: 720px; font-size
 .sysnames b { color: var(--ink); }
 
 /* blind test */
-.ab-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; font-size: 13px; color: var(--ink-2); }
-.ab-progress { display: flex; gap: 4px; }
-.ab-progress i { width: 22px; height: 6px; border: 1.5px solid var(--ink); display: block; }
+.ab-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; font-size: 13px; color: var(--ink-2); }
+.ab-head > span:first-child { white-space: nowrap; }
+.ab-progress { display: flex; gap: 3px; flex: 1; max-width: 640px; min-width: 0; justify-content: flex-end; }
+.ab-progress i { flex: 1; min-width: 0; max-width: 22px; height: 6px; border: 1.5px solid var(--ink); display: block; }
 .ab-progress i.done { background: var(--ink); } .ab-progress i.now { background: var(--stamp); border-color: var(--stamp); }
 .ab-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 34px; }
 .ab-pair .slip { margin: 0; transform: none; display: flex; flex-direction: column; }
@@ -221,7 +222,8 @@ table.eval { border-collapse: collapse; width: 100%; min-width: 720px; font-size
   .topbar { padding: 0 16px; }
   .topbar .logo { padding: 10px 0 0; font-size: 24px; }
   .topnav { width: 100%; overflow-x: auto; margin: 0 -8px; padding: 6px 8px 8px; }
-  .topnav a { padding: 7px 10px; font-size: 13px; }
+  .topnav { gap: 0; }
+  .topnav a { padding: 7px 8px; font-size: 13px; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   aside.ledger-wrap { border-right: 0; border-bottom: 1.5px solid var(--ink); }
   .ledger-head { padding: 12px 16px; }
