@@ -15,4 +15,5 @@ export const saveShop = (...a: Parameters<typeof mock.saveShop>) => impl.saveSho
 export const findSimilarReplies = (...a: Parameters<typeof mock.findSimilarReplies>) => impl.findSimilarReplies(...a);
 export const getEvalResults = () => impl.getEvalResults();
 export const getAbPairs = () => impl.getAbPairs();
+export const getAbTally = () => impl.getAbTally();
 export const saveVote = (...a: Parameters<typeof mock.saveVote>) => impl.saveVote(...a);

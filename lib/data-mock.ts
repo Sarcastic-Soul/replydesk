@@ -1,6 +1,6 @@
 import { csvToReviews } from "./csv";
 import { SAMPLE_AB_PAIRS } from "./ab-sample";
-import type { AbChoice, AbPair, EvalResults, Review, ReplyExample, Shop, ShopInput } from "./types";
+import type { AbChoice, AbPair, AbTally, EvalResults, Review, ReplyExample, Shop, ShopInput } from "./types";
 
 const H = 3600_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -128,6 +128,11 @@ export async function getEvalResults(): Promise<EvalResults | null> {
 }
 export async function getAbPairs(): Promise<{ pairs: AbPair[]; isSample: boolean }> {
   return { pairs: SAMPLE_AB_PAIRS, isSample: true };
+}
+export async function getAbTally(): Promise<AbTally> {
+  const tally: AbTally = { base: 0, tuned: 0, same: 0 };
+  for (const v of store().votes) tally[v.choice] += 1;
+  return tally;
 }
 export async function saveVote(pairId: string, choice: AbChoice) {
   store().votes.push({ pairId, choice, at: new Date().toISOString() });

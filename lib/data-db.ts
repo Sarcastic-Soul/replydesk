@@ -3,7 +3,7 @@ import { getDb, schema } from "./db";
 import { csvToReviews } from "./csv";
 import { SAMPLE_AB_PAIRS } from "./ab-sample";
 import { createAssistant, syncFacts } from "./backboard";
-import { CATEGORIES, type AbChoice, type AbPair, type Category, EvalMetric, EvalResults, EvalSystem, Review, ReplyExample, Shop, ShopInput } from "./types";
+import { CATEGORIES, type AbChoice, type AbPair, type AbTally, type Category, EvalMetric, EvalResults, EvalSystem, Review, ReplyExample, Shop, ShopInput } from "./types";
 
 const { shops, shopFacts, reviews, replies, replyExamples, evalResults, abVotes, abPairs } = schema;
 
@@ -227,6 +227,16 @@ export async function getAbPairs(): Promise<{ pairs: AbPair[]; isSample: boolean
     })),
     isSample: false,
   };
+}
+
+export async function getAbTally(): Promise<AbTally> {
+  const rows = await getDb()
+    .select({ choice: abVotes.choice, n: sql<number>`count(*)::int` })
+    .from(abVotes)
+    .groupBy(abVotes.choice);
+  const tally: AbTally = { base: 0, tuned: 0, same: 0 };
+  for (const r of rows) if (r.choice in tally) tally[r.choice as AbChoice] = r.n;
+  return tally;
 }
 
 export async function saveVote(pairId: string, choice: AbChoice) {

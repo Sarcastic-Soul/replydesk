@@ -210,6 +210,10 @@ table.eval { border-collapse: collapse; width: 100%; min-width: 720px; font-size
 .reveal li { padding: 12px 0; border-bottom: 1px solid var(--rule); font-size: 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
 .reveal li span:first-child { overflow-wrap: anywhere; }
 .reveal em { font-style: normal; font-weight: 700; }
+.reading { max-width: 62ch; margin-top: 36px; }
+.reading h2 { font: 600 22px var(--font-fraunces), serif; margin: 0 0 10px; }
+.reading p { color: var(--ink-2); margin: 0 0 12px; }
+.reading a { color: var(--ink); text-decoration: underline; }
 .note-sample { font-size: 13px; color: var(--ink-2); border-left: 3px solid var(--stamp-soft); padding-left: 12px; margin: 0 0 24px; }
 
 /* ---------- phone ---------- */

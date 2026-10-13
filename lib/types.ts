@@ -58,6 +58,8 @@ export type EvalMetric =
   | "cliche_rate"
   | "mentions_detail"
   | "made_up_promises"
+  | "template_rate"
+  | "ranked_first"
   | "win_rate_vs_base"
   | "cost_per_reply"
   | "latency_ms";
@@ -80,6 +82,7 @@ export type AbPair = {
 };
 
 export type AbChoice = "base" | "tuned" | "same";
+export type AbTally = Record<AbChoice, number>;
 
 export type ShopInput = {
   name: string;
