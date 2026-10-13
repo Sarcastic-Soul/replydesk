@@ -55,4 +55,4 @@ def config(name: str) -> train.Config:
 
 
 if __name__ == "__main__":
-    asyncio.run(train.main(config(sys.argv[1] if len(sys.argv) > 1 else "v2")))
+    asyncio.run(train.main(config(sys.argv[1] if len(sys.argv) > 1 else "v3")))

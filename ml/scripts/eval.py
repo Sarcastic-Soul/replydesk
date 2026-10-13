@@ -2,10 +2,10 @@
 
     base   Qwen3.5-4B, prompted (Tinker)
     tuned  Qwen3.5-4B, fine-tuned (Tinker)
-    big    Qwen3.8-27B, prompted (Groq)
+    big    Qwen3.8-27B, prompted (Tinker)
     real   the reply the real owner posted
 
-A judge model from a different family (gpt-oss-120b on Groq) sees the four
+A judge model from a different family (gpt-oss-120b, sampled on Tinker) sees the four
 replies to each review in random order with no labels and marks each one.
 Generations and judgements are cached, so the script can be re-run safely.
 
@@ -36,7 +36,7 @@ DATA = ROOT / "data"
 OUT = DATA / "eval"
 OUT.mkdir(exist_ok=True)
 
-TUNED = "tinker://7f3021d1-ee4f-5003-b645-2da86957457f:train:0/sampler_weights/000100"
+TUNED = "tinker://1cf358f7-dec5-50e7-b3fd-57db9f467d70:train:0/sampler_weights/final"
 TINKER_PRICE = (0.33, 1.005)  # $ per 1M prompt / sampled tokens, Qwen3.5-4B
 JUDGE = "openai/gpt-oss-120b"
 SYSTEMS = ["base", "tuned", "big", "real"]
@@ -44,7 +44,6 @@ SYSTEMS = ["base", "tuned", "big", "real"]
 tinker = AsyncOpenAI(
     base_url="https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1", api_key=os.environ["TINKER_API_KEY"]
 )
-groq = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.environ["GROQ_API_KEY"])
 
 CLICHES = re.compile(
     r"valued customer|apologi[sz]e for any inconvenience|sorry for any inconvenience|thank you for taking the time"
@@ -75,21 +74,18 @@ async def call(client, sem, model, msgs, **kw):
 async def generate(system: str, rows: list[dict]) -> None:
     path = OUT / f"gen_{system}.jsonl"
     done = {r["i"] for r in load(path.name)}
-    sem = asyncio.Semaphore(4 if system != "big" else 2)
+    sem = asyncio.Semaphore(4)
 
     async def one(i, row):
         msgs = messages(row, with_reply=False)
-        if system == "big":
-            r, dt = await call(groq, sem, "qwen/qwen3.8-27b", msgs, max_tokens=220, temperature=0.7, reasoning_effort="none")
-            cost = None
-        else:
-            model = TUNED if system == "tuned" else "Qwen/Qwen3.5-4B"
-            r, dt = await call(
-                tinker, sem, model, msgs, max_tokens=220, temperature=0.7, extra_body={"reasoning_effort": False}
-            )
+        model = {"base": "Qwen/Qwen3.5-4B", "tuned": TUNED, "big": "Qwen/Qwen3.8-27B"}[system]
+        r, dt = await call(tinker, sem, model, msgs, max_tokens=220, temperature=0.7, extra_body={"reasoning_effort": False})
+        # Only the 4B price is known; the 27B cost is left out rather than guessed.
+        cost = None
+        if system != "big":
             cost = (r.usage.prompt_tokens * TINKER_PRICE[0] + r.usage.completion_tokens * TINKER_PRICE[1]) / 1e6
         text = (r.choices[0].message.content or "").strip()
-        return {"i": i, "reply": text, "latency_s": round(dt, 2), "cost_usd": cost}
+        return {"i": i, "reply": text, "latency_s": round(dt, 2), "cost_usd": cost, "tokens": [r.usage.prompt_tokens, r.usage.completion_tokens]}
 
     todo = [(i, row) for i, row in enumerate(rows) if i not in done]
     with path.open("a") as f:
@@ -123,7 +119,7 @@ async def judge(rows: list[dict]) -> None:
     gens["real"] = {i: r["reply"] for i, r in enumerate(rows)}
     path = OUT / "judge.jsonl"
     done = {r["i"] for r in load(path.name)}
-    sem = asyncio.Semaphore(2)
+    sem = asyncio.Semaphore(4)
 
     async def one(i, row):
         order = SYSTEMS[:]
@@ -132,11 +128,12 @@ async def judge(rows: list[dict]) -> None:
         prompt = JUDGE_PROMPT.format(replies=replies, **row)
         for _ in range(3):
             r, _ = await call(
-                groq, sem, JUDGE, [{"role": "user", "content": prompt}],
-                max_tokens=1500, temperature=0, reasoning_effort="low", response_format={"type": "json_object"},
+                tinker, sem, JUDGE, [{"role": "user", "content": prompt}],
+                max_tokens=1500, temperature=0, extra_body={"reasoning_effort": "low"},
             )
             try:
-                d = json.loads(r.choices[0].message.content)
+                text = r.choices[0].message.content or ""
+                d = json.loads(text[text.find("{") : text.rfind("}") + 1])
                 marks = {order[int(k) - 1]: v for k, v in d["replies"].items()}
                 ranking = [order[int(k) - 1] for k in d["ranking"]]
                 if set(marks) == set(SYSTEMS) and sorted(ranking) == sorted(SYSTEMS):

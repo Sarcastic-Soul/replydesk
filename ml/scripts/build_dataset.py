@@ -65,8 +65,13 @@ STOCK = (
 
 
 def good_replies(df: pl.DataFrame) -> pl.DataFrame:
+    """Replies worth learning from: not defensive, not stock text, and (v3) long
+    enough to say something and answering at least two things the reviewer said.
+    v2 without the last rule learned to post short, generic thank-yous."""
     low = pl.col("rating") <= 3
     return df.filter(
+        pl.col("reply").str.split(" ").list.len() >= 20,
+        pl.col("overlap") >= 2,
         ~pl.col("reply").str.contains(DEFENSIVE),
         ~pl.col("reply").str.contains(STOCK),
         ~low | ~pl.col("reply").str.contains(ARGUING),

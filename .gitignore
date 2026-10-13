@@ -18,3 +18,4 @@ data/interim/
 ml/data/
 ml/runs/
 embed-space/
+.vercel

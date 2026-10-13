@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS reply_examples_bm25_idx
 
 def main() -> None:
     pool = pl.read_parquet(ROOT / "data" / "examples_pool.parquet")
-    print(f"embedding {pool.height} reviews")
+    print(f"embedding {pool.height} reviews", flush=True)
     model = TextEmbedding("BAAI/bge-small-en-v1.5")
     vectors = list(model.embed(pool["review"].to_list(), batch_size=128))
 
