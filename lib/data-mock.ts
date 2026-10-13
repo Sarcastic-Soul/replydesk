@@ -107,7 +107,7 @@ export async function saveShop(input: ShopInput): Promise<Shop> {
 const tokens = (t: string) => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- same signature as data-db.ts
-export async function findSimilarReplies(reviewText: string, _shopType: string, limit = 3, _embedding?: number[] | null): Promise<ReplyExample[]> {
+export async function findSimilarReplies(reviewText: string, _shopType: string, limit = 3, _embedding?: number[] | null, _rating?: number): Promise<ReplyExample[]> {
   // Offline stand-in for the hybrid search in data-db.ts: ranks by shared words.
   const q = tokens(reviewText);
   return store().examples

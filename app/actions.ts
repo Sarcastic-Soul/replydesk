@@ -29,7 +29,7 @@ export async function draftAction(
     const [review, shop] = await Promise.all([data.getReview(reviewId), data.getShop()]);
     if (!review) return { ok: false, error: "That review was not found." };
     const [examples, facts] = await Promise.all([
-      data.findSimilarReplies(review.text, shop.category, 3, embedding).catch((e) => {
+      data.findSimilarReplies(review.text, shop.category, 3, embedding, review.rating).catch((e) => {
         console.error("findSimilarReplies", e instanceof Error ? e.message : e);
         return [];
       }),
@@ -139,7 +139,7 @@ export async function contextAction(reviewId: string): Promise<{ promises: Promi
   const [review, shop] = await Promise.all([data.getReview(String(reviewId)), data.getShop()]);
   if (!review) return { promises: [], examples: [] };
   const [examples, promises] = await Promise.all([
-    data.findSimilarReplies(review.text, shop.category, 3).catch(() => []),
+    data.findSimilarReplies(review.text, shop.category, 3, null, review.rating).catch(() => []),
     review.reply ? checkPromises(review.reply.text, shop.facts) : Promise.resolve([]),
   ]);
   return { promises, examples };

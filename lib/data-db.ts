@@ -147,14 +147,17 @@ const toExample = (r: ExampleRow, own: boolean): ReplyExample => ({
  * DiskANN (meaning, only when the browser sent a query vector), top 20 of each,
  * merged with reciprocal rank fusion (k = 60) in one statement.
  * The shop's own past replies come first when they share words with the review.
+ * When the rating is known, only examples on the same side (1-3 or 4-5 stars) count.
  */
 export async function findSimilarReplies(
   reviewText: string,
   shopType: string,
   limit = 3,
   embedding?: number[] | null,
+  rating?: number,
 ): Promise<ReplyExample[]> {
   const db = getDb();
+  const band = rating ? sql`and (rating <= 3) = ${rating <= 3}` : sql``;
   const s = await shopRow();
   const out: ReplyExample[] = [];
 
@@ -176,7 +179,7 @@ export async function findSimilarReplies(
     ? sql`, vec as (
         select id, row_number() over (order by embedding <=> ${vec}::vector) as rnk
         from (select id, embedding from reply_examples
-              where shop_id is null and category = ${shopType} and embedding is not null
+              where shop_id is null and category = ${shopType} and embedding is not null ${band}
               order by embedding <=> ${vec}::vector limit 20) v
       )`
     : sql``;
@@ -187,7 +190,7 @@ export async function findSimilarReplies(
       select id, row_number() over (order by score) as rnk
       from (select id, review_text <@> to_bm25query(${reviewText}, 'reply_examples_bm25_idx') as score
             from reply_examples
-            where shop_id is null and category = ${shopType}
+            where shop_id is null and category = ${shopType} ${band}
             order by review_text <@> to_bm25query(${reviewText}, 'reply_examples_bm25_idx')
             limit 20) b
     )${vecCte}
@@ -200,8 +203,14 @@ export async function findSimilarReplies(
     select e.review_text, e.reply_text, e.rating, e.category
     from fused f join reply_examples e on e.id = f.id
     order by f.score desc
-    limit ${limit}`);
-  out.push(...(rows as unknown as ExampleRow[]).map((r) => toExample(r, false)));
+    limit ${limit * 2}`);
+  // The pool has a few reviews posted twice; show each one once.
+  const seen = new Set(out.map((e) => e.reviewText));
+  for (const r of rows as unknown as ExampleRow[]) {
+    if (seen.has(r.review_text)) continue;
+    seen.add(r.review_text);
+    out.push(toExample(r, false));
+  }
   return out.slice(0, limit);
 }
 
