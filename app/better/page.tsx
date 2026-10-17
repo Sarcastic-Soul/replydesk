@@ -7,23 +7,23 @@ export const metadata: Metadata = { title: "Is it better?" };
 export const dynamic = "force-dynamic";
 
 const SYSTEMS: { id: EvalSystem; label: string }[] = [
-  { id: "base", label: "Qwen3.5-4B, prompted" },
-  { id: "tuned", label: "ReplyDesk (Qwen3.5-4B, fine-tuned)" },
-  { id: "big", label: "Qwen3.8-27B, prompted" },
+  { id: "base", label: "Qwen3.5-4B, short prompt" },
+  { id: "careful", label: "Qwen3.5-4B, long rulebook prompt" },
+  { id: "v3", label: "Earlier tune (v3)" },
+  { id: "v4", label: "ReplyDesk (v4, fine-tuned)" },
   { id: "real", label: "Real owner reply" },
 ];
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const METRICS: { id: EvalMetric; label: string; help: string; fmt: (v: number) => string }[] = [
-  { id: "median_words", label: "Median words", help: "Shorter is closer to how owners write.", fmt: (v) => String(Math.round(v)) },
-  { id: "cliche_rate", label: "Cliché rate", help: "Replies with stock phrases like “we value your feedback”. Lower is better.", fmt: pct },
-  { id: "mentions_detail", label: "Mentions a detail", help: "Reply points to something the customer actually said. Higher is better.", fmt: pct },
-  { id: "made_up_promises", label: "Specific promises", help: "Offers a refund, discount, call-back or fix the owner would have to deliver. Lower is safer.", fmt: pct },
-  { id: "template_rate", label: "Reads like a template", help: "Could be pasted under any review. Lower is better.", fmt: pct },
-  { id: "ranked_first", label: "Judge's first pick", help: "Share of reviews where the judge ranked this reply best of the four.", fmt: pct },
-  { id: "win_rate_vs_base", label: "Beats the prompted 4B", help: "Judge ranked it above the prompted base model.", fmt: pct },
-  { id: "cost_per_reply", label: "Cost per reply", help: "Tokens in and out at Tinker's price. The 27B price is not public, so it is left out.", fmt: (v) => `$${v.toFixed(5)}` },
+  { id: "pass_all", label: "Passes every rule", help: "Short, answers the review, no stock phrase, no arguing, an apology on low stars, no unbacked promise. Higher is better.", fmt: pct },
+  { id: "rule_detail", label: "Mentions a detail", help: "Reply repeats something the customer actually said. Higher is better.", fmt: pct },
+  { id: "unbacked_promise_rate_with_facts", label: "Promises beyond the shop facts", help: "On reviews where the shop saved facts: refunds, discounts or call-backs the facts do not back. Lower is safer.", fmt: pct },
+  { id: "median_words", label: "Median words", help: "Real owners write about 34.", fmt: (v) => String(Math.round(v)) },
+  { id: "prompt_tokens", label: "Prompt size", help: "Tokens sent with every request. The tuned model needs no rulebook in the prompt.", fmt: (v) => String(Math.round(v)) },
+  { id: "cost_per_reply", label: "Cost per reply", help: "Tokens in and out at Tinker's price for Qwen3.5-4B.", fmt: (v) => `$${v.toFixed(5)}` },
   { id: "latency_ms", label: "Latency", help: "Time to a full reply.", fmt: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`) },
+  { id: "v4_win_rate", label: "v4 wins head to head", help: "Judge (gpt-oss-120b) picked v4's reply over this column's, 100 reviews. 50% is a tie.", fmt: pct },
 ];
 
 export default async function BetterPage() {
@@ -33,7 +33,9 @@ export default async function BetterPage() {
     <div className="page">
       <h1>Is it better?</h1>
       <p className="lede">
-        The fine-tuned model against the same model with a careful prompt, a much bigger open model, and what real owners wrote. Same held-out reviews from businesses the model never saw in training. A judge model from a different family (gpt-oss-120b) saw the four replies in random order with no labels.
+        v4 against the same model with a short prompt, the same model with a long rulebook prompt, the earlier tune, and what real owners wrote.
+        300 held-out reviews from businesses the model never saw in training. Half of them come with shop facts, the way the app sends them.
+        The rule rows are plain code, not a model. The head-to-head row is a judge model from a different family.
       </p>
 
       {results ? (
@@ -57,7 +59,7 @@ export default async function BetterPage() {
             <tr>
               <th scope="col">Metric</th>
               {SYSTEMS.map((s) => (
-                <th key={s.id} scope="col" className={s.id === "tuned" ? "tuned" : undefined}>{s.label}</th>
+                <th key={s.id} scope="col" className={s.id === "v4" ? "tuned" : undefined}>{s.label}</th>
               ))}
             </tr>
           </thead>
@@ -68,7 +70,7 @@ export default async function BetterPage() {
                 {SYSTEMS.map((s) => {
                   const v = results?.values[s.id]?.[m.id];
                   return (
-                    <td key={s.id} className={s.id === "tuned" ? "tuned" : undefined}>
+                    <td key={s.id} className={s.id === "v4" ? "tuned" : undefined}>
                       {v == null ? <span className="dash" aria-label="not measured">—</span> : m.fmt(v)}
                     </td>
                   );
@@ -83,19 +85,22 @@ export default async function BetterPage() {
         <section className="reading">
           <h2>What the numbers say</h2>
           <p>
-            Fine-tuning did what it was trained to do: the replies now sound like real owners. They are about the same length,
-            use far fewer stock phrases, and make fewer specific promises the owner would have to keep.
+            The first tune (v3) copied the length of real owners but often skipped what the reviewer said, and the judge
+            preferred the prompted models. v4 was trained on replies that answer the review in 2 or 3 plain sentences,
+            with shop facts in the prompt, and it fixes that: it passes the rules about as often as a prompt that spells
+            every rule out, and it beats v3 head to head.
           </p>
           <p>
-            The judge model still prefers the prompted models. Their replies are longer and almost always name a detail
-            from the review, and judges tend to reward that. It ranks real owner replies low too, so the judge
-            is mostly measuring polish, not whether a shop owner would post it.
+            It does not beat the long-prompt model on quality. The judge calls it a tie. What it saves is the rulebook:
+            the same behavior from a prompt about half the size, a cheaper reply, and no instructions to keep up to date.
+            The rules were written from the same guide that made the training data, so the rule rows flatter it a little.
+            The head-to-head row and the blind test are the independent checks.
           </p>
           <p>
-            That question goes to people. On the <Link href="/ab">Blind test</Link> page you see one reply from each 4B model
-            side by side and pick the one you would send.
+            People get the last word. On the <Link href="/ab">Blind test</Link> page you see v4 against the long-prompt model
+            and pick the one you would send.
             {votes > 0 && (
-              <> So far: {tally.tuned} for the fine-tuned reply, {tally.base} for the prompted one, {tally.same} “about the same” ({votes} votes).</>
+              <> So far: {tally.tuned} for v4, {tally.base} for the long-prompt model, {tally.same} “about the same” ({votes} votes).</>
             )}
           </p>
         </section>

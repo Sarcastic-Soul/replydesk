@@ -38,8 +38,8 @@ export function AbTest({ pairs }: { pairs: BlindPair[] }) {
         <h2 style={{ font: "600 26px var(--font-fraunces), serif", margin: "0 0 6px" }}>That was the last pair.</h2>
         {showTally ? (
           <div className="tally" role="group" aria-label="Your votes">
-            <div><b>{tuned}</b><span>picked the fine-tuned reply</span></div>
-            <div><b>{base}</b><span>picked the base model reply</span></div>
+            <div><b>{tuned}</b><span>picked the fine-tuned reply (v4)</span></div>
+            <div><b>{base}</b><span>picked the long-prompt model</span></div>
             <div><b>{same}</b><span>about the same</span></div>
           </div>
         ) : (

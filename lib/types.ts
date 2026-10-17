@@ -52,17 +52,21 @@ export type DraftResult = {
 
 export type PromiseCheck = { text: string; ok: boolean; note: string };
 
-export type EvalSystem = "base" | "tuned" | "big" | "real";
+export type EvalSystem = "base" | "careful" | "v3" | "v4" | "real";
 export type EvalMetric =
+  | "pass_all"
+  | "rule_detail"
+  | "rule_no_stock"
+  | "rule_no_arguing"
+  | "rule_acknowledges"
+  | "rule_length"
+  | "unbacked_promise_rate"
+  | "unbacked_promise_rate_with_facts"
   | "median_words"
-  | "cliche_rate"
-  | "mentions_detail"
-  | "made_up_promises"
-  | "template_rate"
-  | "ranked_first"
-  | "win_rate_vs_base"
+  | "latency_ms"
   | "cost_per_reply"
-  | "latency_ms";
+  | "prompt_tokens"
+  | "v4_win_rate";
 
 export type EvalResults = {
   runId: string;

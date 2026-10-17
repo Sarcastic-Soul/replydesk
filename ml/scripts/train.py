@@ -9,6 +9,7 @@ after about 75 steps in v1 anyway.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def config(name: str) -> train.Config:
         train_on_what=TrainOnWhat.LAST_ASSISTANT_MESSAGE,
     )
     data = FromConversationFileBuilder(
-        common_config=common, file_path=str(ROOT / "data" / "train_chat.jsonl"), test_size=200, shuffle_seed=26
+        common_config=common, file_path=str(ROOT / "data" / os.environ.get("TRAIN_FILE", "train_chat.jsonl")), test_size=200, shuffle_seed=26
     )
     return train.Config(
         log_path=str(ROOT / "runs" / name),
@@ -46,10 +47,10 @@ def config(name: str) -> train.Config:
         dataset_builder=data,
         learning_rate=hyperparam_utils.get_lr(MODEL),
         lr_schedule="linear",
-        num_epochs=1,
+        num_epochs=int(os.environ.get("EPOCHS", 1)),
         lora_rank=32,
-        save_every=3 if smoke else 25,
-        eval_every=3 if smoke else 25,
+        save_every=3 if smoke else int(os.environ.get("SAVE_EVERY", 25)),
+        eval_every=3 if smoke else int(os.environ.get("SAVE_EVERY", 25)),
         max_steps=3 if smoke else None,
     )
 

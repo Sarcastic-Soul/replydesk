@@ -13,7 +13,7 @@ export default async function AbPage() {
     <div className="page">
       <h1>Blind test</h1>
       <p className="lede">
-        Two replies to the same review. You are not told which one came from which model. Pick the one you would rather send.
+        Two replies to the same review, one from the fine-tuned model and one from the same base model with a long rulebook prompt. You are not told which is which. Pick the one you would rather send.
       </p>
       {isSample && (
         <p className="note-sample">These are hand-written sample pairs for now. Pairs from the real eval run replace them.</p>

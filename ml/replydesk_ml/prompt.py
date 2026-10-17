@@ -16,13 +16,20 @@ def first_name(author: str) -> str:
     return name if name.isalpha() and len(name) > 1 else ""
 
 
+def system_prompt(row: dict) -> str:
+    system = SYSTEM.format(business=row["business"], shop_type=row["shop_type"])
+    if facts := row.get("facts"):
+        system += "\n\nShop facts (only promise what is listed here):\n" + "\n".join(f"- {f}" for f in facts)
+    return system
+
+
 def messages(row: dict, with_reply: bool = True) -> list[dict]:
     user = f"Rating: {row['rating']}/5\n"
     if name := first_name(row.get("author", "")):
         user += f"Reviewer: {name}\n"
     user += f"Review: {row['review'].strip()}"
     out = [
-        {"role": "system", "content": SYSTEM.format(business=row["business"], shop_type=row["shop_type"])},
+        {"role": "system", "content": system_prompt(row)},
         {"role": "user", "content": user},
     ]
     if with_reply:

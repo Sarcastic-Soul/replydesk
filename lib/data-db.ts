@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, like, sql } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import { csvToReviews } from "./csv";
 import { SAMPLE_AB_PAIRS } from "./ab-sample";
@@ -242,6 +242,7 @@ export async function getAbTally(): Promise<AbTally> {
   const rows = await getDb()
     .select({ choice: abVotes.choice, n: sql<number>`count(*)::int` })
     .from(abVotes)
+    .where(like(abVotes.pairId, "v4-%"))
     .groupBy(abVotes.choice);
   const tally: AbTally = { base: 0, tuned: 0, same: 0 };
   for (const r of rows) if (r.choice in tally) tally[r.choice as AbChoice] = r.n;
