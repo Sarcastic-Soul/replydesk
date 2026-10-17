@@ -8,7 +8,7 @@ const sql = postgres(url, { ssl: "require", max: 1 });
 
 const H = 3600_000;
 // Real reviews from the public Google Local Reviews dataset (other businesses), shortened to first name and initial.
-const REVIEWS = [
+const REVIEWS: { author: string; rating: number; text: string; age: number; reply?: string }[] = [
   { author: "Derrick R.", rating: 1, text: "A 45+ minute wait on only 3 sandwiches! Also 2 of the sandwiches were supposed to be grilled to perfection and not one of them were grilled or hot! Wasted so much time!", age: 2 * H },
   { author: "Vanessa R.", rating: 1, text: "My husband was in line for 30 minutes and they didn't take his order even the people that went in after him got their stuff made. Favoritism I say.", age: 26 * H },
   { author: "Pamela D.", rating: 2, text: "The lady behind the counter was very rude. First and last visit.", age: 30 * H },
