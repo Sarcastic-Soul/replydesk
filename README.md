@@ -1,10 +1,10 @@
 # ReplyDesk
 
-Short, warm replies to Google reviews, written in the shop owner's voice by a small open model (Qwen3.5-4B) fine-tuned on real owner replies. Built for the Hacktoberfest 2026 DEV challenge ("Side Hustle").
+Short, warm replies to Google reviews, written in the shop owner's voice by a small open model (Qwen3.5-4B) fine-tuned with the help of larger open models and real owner replies. Built for the Hacktoberfest 2026 DEV challenge ("Side Hustle").
 
 Live demo: **https://replydesk-shop.vercel.app**
 
-![Inbox with a drafted reply](docs/shots/inbox-desktop.png)
+![Inbox with a drafted reply](docs/shots/inbox-v4.png)
 
 Small shops get reviews every week and most never answer them, because writing a good reply takes time and the replies that chat assistants write sound like a bank. ReplyDesk gives the owner an inbox of reviews, a draft reply for each one, the shop facts that matter for that review, and how they (and owners like them) answered similar reviews before. The owner edits, copies and posts it. Nothing is posted for them.
 
@@ -46,46 +46,70 @@ flowchart LR
 
 That leaves 50,954 pairs. Sign-offs ("Thanks, Bob", "-Ryan, Owner") are stripped because the app adds the owner's name itself. Businesses are split into train, validation and test, so no test business is ever seen in training.
 
-The training set is filtered harder. Replies must be 20+ words, overlap the review by at least two content words, not argue with the customer or call the review false, and for 1 to 3 star reviews, acknowledge the problem in the first lines. That gives 6,000 training pairs (2,262 of them low-star).
+The v3 training set (6,000 pairs) was filtered harder than that. Replies must be 20+ words, overlap the review by at least two content words, not argue with the customer or call the review false, and for 1 to 3 star reviews, acknowledge the problem in the first lines. That gives 6,000 training pairs (2,262 of them low-star).
 
 ### Training
 
 `ml/scripts/train.py` uses `tinker-cookbook` supervised learning: LoRA rank 32, learning rate from the cookbook's helper (about 4.9e-4), batch 64, one epoch, loss on the reply only, thinking turned off in the chat template. The prompt in `ml/replydesk_ml/prompt.py` is the same one the app sends (`lib/prompt.ts`).
 
-It took three tries:
+It took four tries:
 
 | Run | Change | What went wrong |
 |---|---|---|
 | v1 | All clean pairs, 2 epochs | Learned real owners' bad habits too: "Cameron, you are obviously confused. We did not see you in the store." |
 | v2 | Dropped defensive and stock replies | Polite, but bland. Many replies could have gone under any review. |
-| v3 | Kept only replies that are long enough and talk about what the reviewer said | The one the app uses. Test loss 2.125. |
+| v3 | Kept only replies that are long enough and talk about what the reviewer said | Wrote like an owner, but a real owner picked the long-prompt model's reply 15 times out of 19 in a blind test. Only 59% of its replies mention something the customer said. |
+| **v4** | **Teacher data, shop facts in the prompt, rule filter** | **The one the app uses.** |
 
-v3 trained on 1.28M tokens for about $0.95. All three runs together came to about $4 of Tinker credit.
+#### v4: a rulebook turned into training data
+
+The long-prompt model (same Qwen3.5-4B with every rule spelled out) wrote good replies, but it needs a 348 token prompt on every call. v4 teaches those habits to the model itself, so the prompt can be half the size.
+
+1. `ml/scripts/teacher.py` asks two larger open models (gpt-oss-120b and Qwen3.6-35B-A3B on Tinker) for replies to 2,500 training reviews, 2 candidates each, 5,000 in all. The prompt has the style guide and three real owner replies of the same trade and star bucket.
+2. Half the reviews get 1 to 3 "shop facts" (like the facts a real owner saves in Setup), and the teacher is told to promise only what the facts say.
+3. Free code checks (`ml/replydesk_ml/rules.py`) throw out replies that are too long or short, skip what the reviewer said, use stock phrases, argue, sign off, or promise a refund, discount, free item or call-back that the facts do not back. Openings are capped so the data is not 300 copies of "I'm sorry to hear".
+4. Real owner replies that pass the same checks are mixed in, up to half as many as the teacher replies. That gives 2,584 training rows.
+5. Same training recipe as v3 (LoRA rank 32), 2 epochs. The training prompt is the app's prompt, plus the shop facts block when the shop has facts.
 
 ### Eval
 
-`ml/scripts/eval.py` writes a reply to 300 held-out reviews (half of them 1 to 3 stars) with four systems, then a judge from a different model family (gpt-oss-120b on Tinker) sees the four replies in random order with no labels. It marks each one and ranks them.
+`ml/scripts/eval4.py` writes replies to the 300 held-out reviews with five systems and scores them. Half of the reviews come with shop facts, the way the app sends them.
 
-| | Qwen3.5-4B prompted | **ReplyDesk (4B fine-tuned)** | Qwen3.8-27B prompted | Real owner |
-|---|---|---|---|---|
-| Median words | 60.5 | **34** | 56 | 34 |
-| Stock phrases ("we value your feedback") | 19.3% | **2.0%** | 9.7% | 7.3% |
-| Specific promises (refund, call-back, discount) | 18.0% | **11.3%** | 20.3% | 12.7% |
-| Mentions a detail from the review | 98.3% | **56.3%** | 98.3% | 55.3% |
-| Reads like a template (judge) | 22.7% | **77.0%** | 17.0% | 63.0% |
-| Judge's first pick | 40.3% | **5.0%** | 44.0% | 10.7% |
-| Cost per reply | $0.00013 | **$0.00010** | not public | |
-| Median latency | 0.95 s | **1.0 s** | 1.16 s | |
+| | short prompt | long prompt | v3 | **v4** | real owner |
+|---|---|---|---|---|---|
+| Passes every rule | 27% | 87% | 38% | **87%** | 18% |
+| Mentions a detail | 90% | 94% | 59% | **91%** | 51% |
+| Promises beyond the facts (reviews with facts) | 20% | 1% | 11% | **0%** | 10% |
+| Prompt tokens per call | 167 | 348 | 167 | **167** | |
+| Cost per reply | $0.00014 | $0.00015 | $0.00010 | **$0.00010** | |
+| Judge: v4 wins head to head (100 reviews) | 52% | 55% | 81% | | 76% |
 
-What this says, plainly:
+The rules were written from the same guide that made the training data, so the rule rows flatter v4. The judge (gpt-oss-120b, a different model family) is the independent row: v4 clearly beats v3 and real owners, and ties the long prompt and the short prompt.
 
-- Fine-tuning made the model write like real owners. Length, stock phrases and made-up promises all moved from where the prompted model sits to where real owners sit, and stock phrases dropped below even real owners.
-- The judge does not like that. It prefers the prompted models, whose replies are longer and nearly always repeat a detail back. It ranks real owners' replies near the bottom too (first pick 10.7%). So the judge rewards polish, and polish is not the same as what an owner would post.
-- The fine-tuned model is a bit cheaper per reply because it writes less, and it costs nothing like a closed model.
+#### The hard test: reviews that ask for money
 
-Whether owners prefer it is a question for owners, so the app has a blind test (`/ab`): two replies to the same review, one from each 4B model, sides shuffled, and you pick the one you would send. Votes go to Tiger and show up on `/better`.
+`ml/scripts/build_bait.py` picks 150 real 1 and 2 star reviews that demand a refund, a freebie or a call-back, from businesses that are not in train, validation or test.
 
-To run it again: `uv run python scripts/eval.py gen`, then `judge`, then `report` (from `ml/`). Generations and judgements are cached.
+| | short prompt | long prompt | v3 | **v4** | real owner |
+|---|---|---|---|---|---|
+| Passes every rule | 5% | 49% | 21% | **69%** | 7% |
+| Promises beyond the facts (code check) | 49% | 31% | 43% | **14%** | 25% |
+| Promises beyond the facts (gpt-oss-120b reads each reply) | 36% | 29% | 43% | **15%** | 25% |
+| Judge: v4 wins head to head (100 reviews) | 63% | 79% | 84% | | 82% |
+
+This is the one place v4 clearly beats the long prompt: it promises beyond the facts about half as often, and the judge picks it 79 times out of 100.
+
+#### The parts around the model
+
+`ml/scripts/eval_retrieval.py` (Tiger search): for 120 held-out reviews, the share of the top 3 past reviews a judge marked as the same kind of situation. BM25 only 65%, vector only 71%, both fused 72%. Fusing is best, but only by a point over vectors, which is inside the noise.
+
+`ml/scripts/eval_memory.py` (Backboard memory): 120 reviews, 46 of which need a saved shop fact. Sending every fact finds 100% of the needed ones but 25% of what is sent is useful. Memory's closest 3 finds 89% and 44% of what is sent is useful, with half as many facts. This test also found a bug: Backboard's search returns every memory up to the limit in the order they were saved, with a score that is a distance, so the first version of the app was sending almost all facts. It now sorts by score and keeps the closest 3.
+
+#### People
+
+The app has a blind test (`/ab`): two replies to the same review, sides shuffled, and you pick the one you would send. Votes go to Tiger and show up on `/better`. For v3 against the short prompt, a real shop owner picked v3 in 4 of 19 saved votes. The blind test now compares v4 against the long-prompt model.
+
+To run the evals again, from `ml/`: `uv run python scripts/eval4.py gen`, then `report`, `judge`, `promise` (use `EVAL_SET=bait` for the hard test). Generations and judgements are cached.
 
 ## Running the app
 
@@ -109,13 +133,13 @@ With no env vars the app runs offline: sample reviews, an in-memory store, and a
 | `BACKBOARD_API_KEY` | Backboard memory for shop facts. Unset means every saved fact is used. |
 | `GROQ_API_KEY` | Groq, for the promise check. Unset means a simple keyword check. |
 
-The training side lives in `ml/` and uses [uv](https://docs.astral.sh/uv/): `extract.py` and `build_dataset.py` (data), `to_chat.py` and `train.py` (Tinker), `load_examples.py` (example replies into Tiger), `eval.py`.
+The training side lives in `ml/` and uses [uv](https://docs.astral.sh/uv/): `extract.py` and `build_dataset.py` (data), `to_chat.py` and `train.py` (Tinker), `load_examples.py` (example replies into Tiger), `eval4.py`, `eval_retrieval.py`, `eval_memory.py` (evals).
 
 ## How a draft is made
 
 1. **Setup.** The owner picks a shop type (one of the six the model was trained on), adds shop facts and, if they like, past replies. Facts are also saved to Backboard memory (one assistant per shop, only new facts are added and removed ones deleted). Past replies go into `reply_examples`.
 2. **Draft.** The fine-tuned model writes the reply with exactly the training prompt. Thinking is off (`reasoning_effort: false`). The app adds the sign-off.
-3. **Facts for this review.** Backboard memory search returns the facts that match the review. If Backboard fails, all saved facts are used.
+3. **Facts for this review.** Backboard memory search returns the closest 3 facts to the review (sorted by score, since the API returns them in saved order). If Backboard fails, all saved facts are used.
 4. **Similar replies.** Shown beside the draft, never sent to the model. One SQL statement on Tiger: BM25 (`pg_textsearch`) and DiskANN (`vectorscale`) each give their top 20 for the shop's type, and reciprocal rank fusion (k = 60) merges them. The owner's own past replies come first. The review is embedded in the browser (`@huggingface/transformers`, `Xenova/bge-small-en-v1.5`, in a Web Worker), so there is no embedding server. Until the model has loaded, the search uses BM25 only.
 5. **Promise check.** Groq (`openai/gpt-oss-20b`) lists every promise in the reply and marks whether the facts back it. Anything not backed turns the stamp to "Check". If Groq fails, a keyword check runs instead.
 
