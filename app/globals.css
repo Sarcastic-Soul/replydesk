@@ -214,6 +214,10 @@ table.eval { border-collapse: collapse; width: 100%; min-width: 720px; font-size
 .reading { max-width: 62ch; margin-top: 36px; }
 .reading h2 { font: 600 22px var(--font-fraunces), serif; margin: 0 0 10px; }
 .reading p { color: var(--ink-2); margin: 0 0 12px; }
+.reading.wide { max-width: none; }
+.reading.wide p { max-width: 62ch; }
+.reading.wide .table-wrap { margin: 14px 0 16px; }
+table.eval.small { min-width: 0; }
 .reading a { color: var(--ink); text-decoration: underline; }
 .note-sample { font-size: 13px; color: var(--ink-2); border-left: 3px solid var(--stamp-soft); padding-left: 12px; margin: 0 0 24px; }
 

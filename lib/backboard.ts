@@ -47,11 +47,18 @@ export async function syncFacts(assistantId: string, facts: string[]) {
   return { added: toAdd.length, removed: toDelete.length };
 }
 
-/** Facts that match the review. Throws on failure so the caller can fall back. */
-export async function searchFacts(assistantId: string, query: string, limit = 5): Promise<string[]> {
+/**
+ * The closest facts to the review. Throws on failure so the caller can fall back.
+ * The search returns every memory up to the limit, in the order they were saved, with a score that is
+ * a distance (lower is closer), so the closest ones are picked here, not by position.
+ */
+export async function searchFacts(assistantId: string, query: string, limit = 3): Promise<string[]> {
   const r = await call<{ memories?: Memory[] }>(`/assistants/${assistantId}/memories/search`, {
     method: "POST",
-    body: { query, limit },
+    body: { query, limit: 10 },
   }, 4000);
-  return (r.memories ?? []).map((m) => m.content);
+  return (r.memories ?? [])
+    .sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity))
+    .slice(0, limit)
+    .map((m) => m.content);
 }

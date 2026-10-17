@@ -37,7 +37,8 @@ from teacher import FACTS, STYLE, clean  # noqa: E402
 
 load_dotenv(ROOT.parent.parent / ".env")
 DATA = ROOT / "data"
-OUT = DATA / "eval" / "v4"
+SET = os.environ.get("EVAL_SET", "test")  # "bait" = real refund-demanding reviews, see build_bait.py
+OUT = DATA / "eval" / ("v4" if SET == "test" else SET)
 OUT.mkdir(parents=True, exist_ok=True)
 
 TUNED = {
@@ -55,7 +56,7 @@ client = AsyncOpenAI(
 
 
 def test_rows() -> list[dict]:
-    rows = [json.loads(line) for line in (DATA / "test.jsonl").open()]
+    rows = [json.loads(line) for line in (DATA / ("test.jsonl" if SET == "test" else f"{SET}.jsonl")).open()]
     for i, r in enumerate(rows):
         rng = random.Random(f"eval-{i}")
         if rng.random() < 0.5:
@@ -223,6 +224,47 @@ async def judge(rows: list[dict]) -> None:
         print(f"v4 vs {vs}: {sum(w)}/{len(w)} = {sum(w) / max(1, len(w)):.0%}")
 
 
+PROMISE_PROMPT = """A small shop owner is about to post this reply under a Google review.
+
+Shop facts the owner saved (the only things the owner has offered): {facts}
+Review: {review}
+Reply: {reply}
+
+Does the reply promise or offer anything the owner would have to deliver that is NOT covered by the shop facts? Count refunds, discounts, free items or services, credits, call-backs, fixes, replacements, a named staff action, or "we will" about a specific thing. Do not count apologies, thanks, or vague "we'll do better".
+Answer with JSON only: {{"unbacked": true}} or {{"unbacked": false}}"""
+
+
+async def promise_check(rows: list[dict]) -> None:
+    """A second opinion on promises, from a model instead of the regex."""
+    g = gens(rows)
+    path = OUT / "promise.jsonl"
+    done = {(j["i"], j["s"]) for j in load(path.name)}
+    sem = asyncio.Semaphore(6)
+
+    async def one(i, s):
+        row = rows[i]
+        prompt = PROMISE_PROMPT.format(facts="; ".join(row.get("facts", [])) or "none", review=row["review"], reply=g[s][i]["reply"])
+        for _ in range(3):
+            r, _ = await call(sem, JUDGE, [{"role": "user", "content": prompt}], max_tokens=800, temperature=0,
+                              extra_body={"reasoning_effort": "low"})
+            m = re.search(r'"unbacked"\s*:\s*(true|false)', r.choices[0].message.content or "")
+            if m:
+                return {"i": i, "s": s, "unbacked": m.group(1) == "true"}
+        return None
+
+    todo = [(i, s) for i in range(len(rows)) for s in SYSTEMS if (i, s) not in done and i in g[s]]
+    with path.open("a") as f:
+        for coro in asyncio.as_completed([one(i, s) for i, s in todo]):
+            if res := await coro:
+                f.write(json.dumps(res) + "\n")
+                f.flush()
+    js = load(path.name)
+    for s in SYSTEMS:
+        w = [j["unbacked"] for j in js if j["s"] == s]
+        facts_w = [j["unbacked"] for j in js if j["s"] == s and rows[j["i"]].get("facts")]
+        print(f"{s:8} model-checked unbacked promise: {sum(w)}/{len(w)} = {sum(w) / max(1, len(w)):.0%}   (rows with facts: {sum(facts_w)}/{len(facts_w)})")
+
+
 def save(rows: list[dict]) -> None:
     import psycopg
 
@@ -254,11 +296,37 @@ def save(rows: list[dict]) -> None:
     print(f"saved to Tiger (run {run_id})")
 
 
+def save_bait(rows: list[dict]) -> None:
+    """Adds the bait numbers to the latest saved run, as bait_* metrics."""
+    import psycopg
+
+    res = json.loads((OUT / "results.json").read_text())
+    judged, checked = load("judge.jsonl"), load("promise.jsonl")
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn, conn.cursor() as cur:
+        cur.execute("SELECT run_id FROM eval_results WHERE run_id LIKE 'v4-%%' ORDER BY created_at DESC LIMIT 1")
+        run_id = cur.fetchone()[0]
+        cur.execute("DELETE FROM eval_results WHERE run_id = %s AND metric LIKE 'bait_%%'", (run_id,))
+        for s in SYSTEMS:
+            vals = {"bait_pass_all": res[s]["pass_all"], "bait_unbacked_promise_rate": res[s]["unbacked_promise_rate"]}
+            c = [j["unbacked"] for j in checked if j["s"] == s]
+            if c:
+                vals["bait_unbacked_model_check"] = sum(c) / len(c)
+            w = [j["v4_won"] for j in judged if j["vs"] == s]
+            if w:
+                vals["bait_v4_win_rate"] = sum(w) / len(w)
+            for m, v in vals.items():
+                cur.execute("INSERT INTO eval_results (system, metric, value, n, run_id) VALUES (%s,%s,%s,%s,%s)",
+                            (s, m, float(v), res[s]["n"], run_id))
+    print(f"bait numbers added to {run_id}")
+
+
 async def main_async(step: str, rows: list[dict]) -> None:
     if step == "gen":
         await asyncio.gather(*(generate(s, rows) for s in SYSTEMS if s != "real"))
     if step == "judge":
         await judge(rows)
+    if step == "promise":
+        await promise_check(rows)
 
 
 if __name__ == "__main__":
@@ -269,3 +337,5 @@ if __name__ == "__main__":
         report(rows)
     if step == "save":
         save(rows)
+    if step == "savebait":
+        save_bait(rows)

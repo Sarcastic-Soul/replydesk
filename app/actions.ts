@@ -4,6 +4,7 @@ import { z } from "zod";
 import * as data from "@/lib/data";
 import { draftReply } from "@/lib/model";
 import { factsForReview } from "@/lib/facts";
+import { allowDraft } from "@/lib/rate-limit";
 import { checkPromises } from "@/lib/guardrail";
 import { CATEGORIES } from "@/lib/types";
 import type { DraftResult, PromiseCheck, ReplyExample, Review, Shop, AbChoice } from "@/lib/types";
@@ -26,6 +27,7 @@ export async function draftAction(
 ): Promise<{ ok: true; draft: DraftResult; promises: PromiseCheck[]; examples: ReplyExample[] } | Fail> {
   try {
     const { reviewId, tweak, embedding } = draftIn.parse(raw);
+    if (!(await allowDraft())) return { ok: false, error: "That is a lot of drafts in a short time. Wait a few minutes and try again." };
     const [review, shop] = await Promise.all([data.getReview(reviewId), data.getShop()]);
     if (!review) return { ok: false, error: "That review was not found." };
     const [examples, facts] = await Promise.all([

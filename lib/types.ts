@@ -66,7 +66,11 @@ export type EvalMetric =
   | "latency_ms"
   | "cost_per_reply"
   | "prompt_tokens"
-  | "v4_win_rate";
+  | "v4_win_rate"
+  | "bait_pass_all"
+  | "bait_unbacked_promise_rate"
+  | "bait_unbacked_model_check"
+  | "bait_v4_win_rate";
 
 export type EvalResults = {
   runId: string;

@@ -9,7 +9,7 @@ import type { Shop } from "./types";
 export async function factsForReview(shop: Shop, reviewText: string): Promise<string[]> {
   if (!shop.backboardAssistantId || !process.env.BACKBOARD_API_KEY || !shop.facts.length) return shop.facts;
   try {
-    const found = await searchFacts(shop.backboardAssistantId, reviewText, 5);
+    const found = await searchFacts(shop.backboardAssistantId, reviewText, 3);
     return found.length ? found : shop.facts;
   } catch (e) {
     console.error("backboard search fell back to all facts:", e instanceof Error ? e.message : e);

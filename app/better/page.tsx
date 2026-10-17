@@ -26,6 +26,25 @@ const METRICS: { id: EvalMetric; label: string; help: string; fmt: (v: number) =
   { id: "v4_win_rate", label: "v4 wins head to head", help: "Judge (gpt-oss-120b) picked v4's reply over this column's, 100 reviews. 50% is a tie.", fmt: pct },
 ];
 
+const BAIT: { id: EvalMetric; label: string; help: string }[] = [
+  { id: "bait_pass_all", label: "Passes every rule", help: "Same rules as above. Higher is better." },
+  { id: "bait_unbacked_promise_rate", label: "Promises beyond the facts (code check)", help: "Refunds, discounts, free items or call-backs the shop never offered. Lower is safer." },
+  { id: "bait_unbacked_model_check", label: "Promises beyond the facts (model check)", help: "A second opinion from gpt-oss-120b, which reads each reply and the facts. Lower is safer." },
+  { id: "bait_v4_win_rate", label: "v4 wins head to head", help: "Judge picked v4's reply over this column's, 100 reviews. 50% is a tie." },
+];
+
+const RETRIEVAL = [
+  { id: "bm25", label: "BM25 only (words)" },
+  { id: "vector", label: "Vector only (meaning)" },
+  { id: "fused", label: "Both, fused (what the app does)" },
+];
+const MEMORY = [
+  { id: "all facts", label: "Send every fact" },
+  { id: "memory, first 5 (what the app did)", label: "Memory, first 5 (the first version of the app)" },
+  { id: "memory, closest 3", label: "Memory, closest 3 (what the app does now)" },
+  { id: "memory, closest 2", label: "Memory, closest 2" },
+];
+
 export default async function BetterPage() {
   const [results, tally] = await Promise.all([getEvalResults(), getAbTally()]);
   const votes = tally.base + tally.tuned + tally.same;
@@ -80,6 +99,117 @@ export default async function BetterPage() {
           </tbody>
         </table>
       </div>
+
+      {results?.values.v4?.bait_pass_all != null && (
+        <section className="reading wide">
+          <h2>The hard test: reviews that ask for money</h2>
+          <p>
+            150 real 1 and 2 star reviews that demand a refund, a freebie or a call-back, from shops the model never saw
+            (none were in training, validation or the test above). About half of them come with shop facts that do not offer any of that.
+            This is where a made-up promise costs a shop real money.
+          </p>
+          <div className="table-wrap">
+            <table className="eval">
+              <caption className="sr-only">Results on reviews that ask for money</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Metric</th>
+                  {SYSTEMS.map((s) => (
+                    <th key={s.id} scope="col" className={s.id === "v4" ? "tuned" : undefined}>{s.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {BAIT.map((m) => (
+                  <tr key={m.id}>
+                    <th scope="row">{m.label}<small>{m.help}</small></th>
+                    {SYSTEMS.map((s) => {
+                      const v = results.values[s.id]?.[m.id];
+                      return (
+                        <td key={s.id} className={s.id === "v4" ? "tuned" : undefined}>
+                          {v == null ? <span className="dash" aria-label="not measured">—</span> : pct(v)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Here v4 does what the long prompt could not: it promises beyond the facts about half as often (14% against 31%),
+            and the judge picks it over the long-prompt model 79 times out of 100. Both checks put v4 lowest, but both are still
+            models and code, not shop owners.
+          </p>
+        </section>
+      )}
+
+      {results && (() => {
+        const v = results.values as Record<string, Record<string, number | undefined>>;
+        if (v.fused?.retrieval_precision_at_3 == null && v["memory, closest 3"]?.memory_recall == null) return null;
+        return (
+          <section className="reading wide">
+            <h2>The parts around the model</h2>
+            {v.fused?.retrieval_precision_at_3 != null && (
+              <>
+                <p>
+                  <strong>Tiger Data search.</strong> For 120 held-out reviews, each search returned its top 3 past reviews from the same trade.
+                  A judge model, not told which search found which, marked whether each past review was the same kind of situation.
+                </p>
+                <div className="table-wrap">
+                  <table className="eval small">
+                    <caption className="sr-only">Search quality by method</caption>
+                    <thead><tr><th scope="col">Search</th><th scope="col">Relevant in top 3</th><th scope="col">At least one relevant</th></tr></thead>
+                    <tbody>
+                      {RETRIEVAL.map((m) => (
+                        <tr key={m.id}>
+                          <th scope="row">{m.label}</th>
+                          <td className={m.id === "fused" ? "tuned" : undefined}>{pct(v[m.id]?.retrieval_precision_at_3 ?? 0)}</td>
+                          <td className={m.id === "fused" ? "tuned" : undefined}>{pct(v[m.id]?.retrieval_hit_at_3 ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p>
+                  Fusing is the best of the three, but only by a point over vectors alone, which is inside the noise of 120 reviews.
+                  Words alone are clearly weaker. So the fusion earns its place mostly by never being the worst.
+                </p>
+              </>
+            )}
+            {v["memory, closest 3"]?.memory_recall != null && (
+              <>
+                <p>
+                  <strong>Backboard memory.</strong> 120 held-out reviews across the six shop types, 46 of which need a saved fact
+                  (a judge model marked which facts a good reply would use). Recall is how many of the needed facts reach the model.
+                  Precision is how many of the facts sent were needed.
+                </p>
+                <div className="table-wrap">
+                  <table className="eval small">
+                    <caption className="sr-only">Fact choice by method</caption>
+                    <thead><tr><th scope="col">Facts sent to the model</th><th scope="col">Needed facts found</th><th scope="col">Facts sent that were needed</th><th scope="col">Facts per reply</th></tr></thead>
+                    <tbody>
+                      {MEMORY.map((m) => (
+                        <tr key={m.id}>
+                          <th scope="row">{m.label}</th>
+                          <td className={m.id.endsWith("closest 3") ? "tuned" : undefined}>{pct(v[m.id]?.memory_recall ?? 0)}</td>
+                          <td className={m.id.endsWith("closest 3") ? "tuned" : undefined}>{pct(v[m.id]?.memory_precision ?? 0)}</td>
+                          <td className={m.id.endsWith("closest 3") ? "tuned" : undefined}>{(v[m.id]?.memory_facts_sent ?? 0).toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p>
+                  This test found a bug in my first version. Backboard&apos;s search hands back every memory up to the limit, in the order they were
+                  saved, and its score is a distance. With about 6 facts per shop and a limit of 5, the app was sending almost all facts. Picking the
+                  closest 3 by score keeps 89% of the needed facts and sends half as many.
+                </p>
+              </>
+            )}
+          </section>
+        );
+      })()}
 
       {results && (
         <section className="reading">
