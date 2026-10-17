@@ -7,23 +7,24 @@ if (!url) throw new Error("DATABASE_URL is not set");
 const sql = postgres(url, { ssl: "require", max: 1 });
 
 const H = 3600_000;
+// Real reviews from the public Google Local Reviews dataset (other businesses), shortened to first name and initial.
 const REVIEWS = [
-  { author: "Rohan M.", rating: 2, text: "Car was ready a day late and nobody called to tell me. Work itself was fine, brakes feel good now, but I had to take leave twice.", age: 2 * H },
-  { author: "Ankit P.", rating: 1, text: "Charged ₹800 for a check that took five minutes.", age: 26 * H },
-  { author: "Meera K.", rating: 4, text: "Good service, the waiting area could be cleaner.", age: 28 * H },
-  { author: "Priya S.", rating: 5, text: "Ramesh bhai fixed the AC in under an hour. Honest price, showed me the old part.", age: 72 * H, reply: "Thank you Priya, I'll tell Ramesh. See you next time. — Ganesh" },
-  { author: "David L.", rating: 5, text: "Got me back on the road on a Sunday. Lifesavers.", age: 96 * H, reply: "Glad we could help, David. Drive safe. — Ganesh" },
+  { author: "Derrick R.", rating: 1, text: "A 45+ minute wait on only 3 sandwiches! Also 2 of the sandwiches were supposed to be grilled to perfection and not one of them were grilled or hot! Wasted so much time!", age: 2 * H },
+  { author: "Vanessa R.", rating: 1, text: "My husband was in line for 30 minutes and they didn't take his order even the people that went in after him got their stuff made. Favoritism I say.", age: 26 * H },
+  { author: "Pamela D.", rating: 2, text: "The lady behind the counter was very rude. First and last visit.", age: 30 * H },
+  { author: "Justin H.", rating: 4, text: "Good pizza, the cheesy bread sticks were also good, friendly staff, overall chill atmosphere, would return in the near future for another bite to eat.", age: 72 * H },
+  { author: "Rich B.", rating: 5, text: "Beautiful, small coffee shop with a great staff and excellent coffee and treats. Very comfy setting with vegan options as well.", age: 96 * H },
 ];
 const FACTS = [
-  "Same-day WhatsApp update when a job is delayed",
-  "Ask for Ramesh at the front desk",
-  "Free re-check within 7 days",
+  "Open from 12:30 pm to 1 am",
+  "Mostly serves college students from the campus next door",
+  "Veg and non-veg momos, pizzas, grilled chicken and pastries",
 ];
 
 let [shop] = await sql`select id from shops order by created_at limit 1`;
 if (!shop) {
   [shop] = await sql`insert into shops (name, category, city, owner_name)
-    values ('Shree Ganesh Auto Garage', 'auto repair', 'Kothrud, Pune', 'Ganesh') returning id`;
+    values ('HOP-In Café', 'cafe/restaurant', 'Naya Raipur', 'Pratik') returning id`;
   await sql`insert into shop_facts ${sql(FACTS.map((text, position) => ({ shop_id: shop.id, text, position })))}`;
   console.log("created demo shop");
 } else {
